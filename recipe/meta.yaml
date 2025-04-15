@@ -1,5 +1,5 @@
 {% set name = "dbt-common" %}
-{% set version = "1.17.0s" %}
+{% set version = "1.18.0s" %}
 
 package:
   name: {{ name|lower }}
