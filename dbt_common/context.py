@@ -4,6 +4,8 @@ from typing import List, Mapping, Optional, Iterator, Set
 
 from dbt_common.constants import PRIVATE_ENV_PREFIX, SECRET_ENV_PREFIX
 from dbt_common.record import Recorder
+from opentelemetry.context.context import Context
+from opentelemetry import context as opentelemetry_context
 
 
 class CaseInsensitiveMapping(Mapping[str, str]):
@@ -110,3 +112,7 @@ def try_get_invocation_context() -> Optional[InvocationContext]:
         return get_invocation_context()
     except Exception:
         return None
+
+
+def set_otel_context(context: Context):
+    opentelemetry_context.attach(context)
