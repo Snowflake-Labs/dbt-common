@@ -47,6 +47,11 @@ class InvocationContext:
         self.recorder: Optional[Recorder] = None
         self._adapter_types: Set[str] = set()
 
+        # Gates OpenTelemetry instrumentation. Set by dbt-core from the
+        # --snowflake-projects-otel flag; when False, no OTel context is
+        # propagated to worker threads and no spans are emitted.
+        self.enable_snowflake_projects_otel: bool = False
+
         # If set to True later, this flag will prevent dbt from creating a new
         # invocation context for every invocation, which is useful for testing
         # scenarios.
@@ -114,5 +119,5 @@ def try_get_invocation_context() -> Optional[InvocationContext]:
         return None
 
 
-def set_otel_context(context: Context):
+def set_otel_context(context: Context) -> None:
     opentelemetry_context.attach(context)

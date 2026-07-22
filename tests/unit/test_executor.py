@@ -5,7 +5,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from dbt_common.utils.executor import executor
-from dbt_common.context import set_invocation_context
+from dbt_common.context import set_invocation_context, get_invocation_context
 
 
 class ThreadingType:
@@ -27,6 +27,7 @@ def test_executor_opentelemetry_context_propagation(single_threaded, threads):
     trace.get_tracer_provider().add_span_processor(SimpleSpanProcessor(span_exporter))
     tracer = trace.get_tracer("test.dbt.runner")
     set_invocation_context({})
+    get_invocation_context().enable_snowflake_projects_otel = True
     with tracer.start_as_current_span("test-span") as span:
         config = TestConfig(ThreadingType(single_threaded=single_threaded), threads=threads)
 
@@ -38,3 +39,22 @@ def test_executor_opentelemetry_context_propagation(single_threaded, threads):
             span_context_in_thread = future.result()
             assert span.get_span_context().trace_id == span_context_in_thread.trace_id
             assert span.get_span_context().span_id == span_context_in_thread.span_id
+
+
+def test_executor_no_otel_context_propagation_when_disabled():
+    tracer_provider = TracerProvider(resource=Resource.get_empty())
+    span_exporter = InMemorySpanExporter()
+    trace.set_tracer_provider(tracer_provider)
+    trace.get_tracer_provider().add_span_processor(SimpleSpanProcessor(span_exporter))
+    tracer = trace.get_tracer("test.dbt.runner")
+    set_invocation_context({})
+    with tracer.start_as_current_span("test-span") as span:
+        config = TestConfig(ThreadingType(single_threaded=False), threads=2)
+
+        def func():
+            return trace.get_current_span().get_span_context()
+
+        with executor(config) as ex:
+            future = ex.submit(func)
+            span_context_in_thread = future.result()
+            assert span.get_span_context().trace_id != span_context_in_thread.trace_id
