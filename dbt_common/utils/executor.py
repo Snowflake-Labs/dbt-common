@@ -6,7 +6,11 @@ from dbt_common.context import (
     get_invocation_context,
     reliably_get_invocation_var,
     InvocationContext,
+    set_otel_context,
 )
+
+from opentelemetry.context.context import Context
+from opentelemetry import context as opentelemetry_context
 
 
 class ConnectingExecutor(concurrent.futures.Executor):
@@ -66,17 +70,27 @@ class HasThreadingConfig(Protocol):
     threads: Optional[int]
 
 
-def _thread_initializer(invocation_context: InvocationContext) -> None:
+def _thread_initializer(
+    invocation_context: InvocationContext, context: Optional[Context] = None
+) -> None:
     invocation_var = reliably_get_invocation_var()
     invocation_var.set(invocation_context)
+    if invocation_context.enable_snowflake_projects_otel and context is not None:
+        set_otel_context(context)
 
 
 def executor(config: HasThreadingConfig) -> ConnectingExecutor:
     if config.args.single_threaded:
         return SingleThreadedExecutor()
     else:
+        invocation_context = get_invocation_context()
+        otel_context = (
+            opentelemetry_context.get_current()
+            if invocation_context.enable_snowflake_projects_otel
+            else None
+        )
         return MultiThreadedExecutor(
             max_workers=config.threads,
             initializer=_thread_initializer,  # type: ignore
-            initargs=(get_invocation_context(),),  # type: ignore
+            initargs=(invocation_context, otel_context),  # type: ignore
         )
